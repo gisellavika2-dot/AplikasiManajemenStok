@@ -1,6 +1,4 @@
-//const API_URL = 'http://localhost:5000/api/atk';
-
-const API_URL = '/api/atk';
+const API_URL = 'http://localhost:5000/api/atk';
 
 const form = document.getElementById('atkForm');
 const table = document.getElementById('atkTable');
@@ -15,119 +13,40 @@ const toast = document.getElementById('toast');
 
 let editId = null;
 let deleteId = null;
-let mockData = [
-  { id: 1, nama: 'Pulpen Gel Hitam', jenis: 'Alat Tulis', qty: 20 },
-  { id: 2, nama: 'Kertas HVS A4', jenis: 'Kertas', qty: 50 },
-];
-
-let mockLastId = 2;
-
-async function mockFetch(url, options = {}) {
-  const method = options.method || 'GET';
-
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // GET ALL
-      if (url === API_URL && method === 'GET') {
-        resolve({
-          ok: true,
-          json: async () => mockData,
-        });
-      }
-
-      // POST
-      else if (url === API_URL && method === 'POST') {
-        const body = JSON.parse(options.body);
-        if (body.qty <= 0) {
-          resolve({
-            ok: false,
-            json: async () => ({ error: 'Qty harus lebih dari 0' }),
-          });
-          return;
-        }
-        mockLastId++;
-        const newItem = { id: mockLastId, ...body };
-        mockData.push(newItem);
-        resolve({
-          ok: true,
-          json: async () => newItem,
-        });
-      }
-
-      // PUT
-      else if (url.startsWith(API_URL + '/') && method === 'PUT') {
-        const id = parseInt(url.split('/').pop());
-        const body = JSON.parse(options.body);
-        const item = mockData.find((i) => i.id === id);
-        Object.assign(item, body);
-        resolve({
-          ok: true,
-          json: async () => item,
-        });
-      }
-
-      // DELETE
-      else if (url.startsWith(API_URL + '/') && method === 'DELETE') {
-        const id = parseInt(url.split('/').pop());
-        mockData = mockData.filter((i) => i.id !== id);
-        resolve({
-          ok: true,
-          json: async () => ({ message: 'Item berhasil dihapus' }),
-        });
-      }
-    }, 400);
-  });
-}
 
 function showToast(message, type = 'success') {
   toast.innerText = message;
-
-  if (type === 'success') {
-    toast.classList.remove('bg-red-500');
-    toast.classList.add('bg-green-500');
-  } else if (type === 'error') {
-    toast.classList.remove('bg-green-500');
-    toast.classList.add('bg-red-500');
-  }
-
-  toast.classList.add('opacity-100');
-  setTimeout(() => {
-    toast.classList.remove('opacity-100');
-    toast.classList.add('opacity-0');
-  }, 3000);
+  toast.className = 'fixed top-5 right-5 px-4 py-2 rounded shadow text-white transition ' + (type === 'success' ? 'bg-green-500' : 'bg-red-500');
+  toast.classList.remove('opacity-0');
+  setTimeout(() => toast.classList.add('opacity-0'), 3000);
 }
 
 async function loadData() {
-  try {
-    //const res = await fetch(API_URL);
-    const res = await mockFetch(API_URL);
-    const data = await res.json();
-    table.innerHTML = '';
-    data.forEach((item) => {
-      table.innerHTML += `
-        <tr class="hover:bg-gray-50 transition">
-          <td class="px-4 py-2">${item.nama}</td>
-          <td class="px-4 py-2">${item.jenis}</td>
-          <td class="px-4 py-2 text-center">${item.qty}</td>
-          <td class="px-4 py-2 text-center">
-            <div class="flex justify-center gap-2">
-              <button onclick="editItem(${item.id}, '${item.nama}', '${item.jenis}', ${item.qty})"
-                class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-1 rounded shadow transition">Ubah</button>
-              <button onclick="showDeleteModal(${item.id})"
-                class="bg-red-600 hover:bg-red-700 text-white px-4 py-1 rounded shadow transition">Hapus</button>
-            </div>
-          </td>
-        </tr>
-      `;
-    });
-  } catch (error) {
-    showToast('Error load data', 'error');
-  }
+  const res = await fetch(API_URL);
+  const data = await res.json();
+  table.innerHTML = '';
+
+  data.forEach((item) => {
+    table.innerHTML += `
+      <tr>
+        <td class="px-4 py-2">${item.nama}</td>
+        <td class="px-4 py-2">${item.jenis}</td>
+        <td class="px-4 py-2 text-center">${item.qty}</td>
+        <td class="px-4 py-2">
+          <div class="flex justify-center gap-2">
+            <button onclick="editItem(${item.id}, '${item.nama}', '${item.jenis}', ${item.qty})"
+              class="bg-yellow-500 text-white px-3 py-1 rounded">Ubah</button>
+            <button onclick="deleteItem(${item.id})"
+              class="bg-red-600 text-white px-3 py-1 rounded">Hapus</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
 }
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  errorMsg.classList.add('hidden');
 
   const payload = {
     nama: nama.value,
@@ -135,93 +54,52 @@ form.addEventListener('submit', async (e) => {
     qty: Number(qty.value),
   };
 
-  try {
-    let res;
-    let successMsg = '';
-    if (editId) {
-      res = await fetch(`${API_URL}/${editId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      successMsg = 'Barang berhasil diubah';
-    } else {
-      res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      successMsg = 'Barang berhasil ditambahkan';
-    }
+  const method = editId ? 'PUT' : 'POST';
+  const url = editId ? `${API_URL}/${editId}` : API_URL;
 
-    const result = await res.json();
-    if (!res.ok) {
-      errorMsg.innerText = result.error || 'Terjadi kesalahan';
-      errorMsg.classList.remove('hidden');
-      showToast(result.error || 'Terjadi kesalahan', 'error');
-      return;
-    }
+  const res = await fetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 
-    form.reset();
-    editId = null;
-    submitBtn.innerText = 'Tambah';
-    cancelBtn.classList.add('hidden');
+  const result = await res.json();
 
-    loadData();
-    showToast(successMsg);
-  } catch (error) {
-    showToast('Error: ' + error.message, 'error');
+  if (!res.ok) {
+    showToast(result.error, 'error');
+    return;
   }
-});
 
-function editItem(id, namaVal, jenisVal, qtyVal) {
-  editId = id;
-  nama.value = namaVal;
-  jenis.value = jenisVal;
-  qty.value = qtyVal;
+  showToast(editId ? 'Barang berhasil diubah' : 'Barang berhasil ditambahkan');
 
-  submitBtn.innerText = 'Simpan Perubahan';
-  cancelBtn.classList.remove('hidden');
-}
-
-cancelBtn.addEventListener('click', () => {
   form.reset();
   editId = null;
   submitBtn.innerText = 'Tambah';
   cancelBtn.classList.add('hidden');
-  errorMsg.classList.add('hidden');
+
+  loadData();
 });
 
-const modalDelete = document.getElementById('modalDelete');
-const confirmDelete = document.getElementById('confirmDelete');
-const cancelDelete = document.getElementById('cancelDelete');
-
-function showDeleteModal(id) {
-  deleteId = id;
-  modalDelete.classList.remove('hidden');
+function editItem(id, n, j, q) {
+  editId = id;
+  nama.value = n;
+  jenis.value = j;
+  qty.value = q;
+  submitBtn.innerText = 'Simpan';
+  cancelBtn.classList.remove('hidden');
 }
 
-cancelDelete.addEventListener('click', () => {
-  modalDelete.classList.add('hidden');
-  deleteId = null;
-});
+async function deleteItem(id) {
+  await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+  showToast('Barang berhasil dihapus');
+  loadData();
+}
 
-confirmDelete.addEventListener('click', async () => {
-  if (!deleteId) return;
-  try {
-    const res = await fetch(`${API_URL}/${deleteId}`, { method: 'DELETE' });
-    const result = await res.json();
-    if (!res.ok) {
-      showToast(result.error || 'Gagal hapus item', 'error');
-    } else {
-      showToast('Barang berhasil dihapus');
-    }
-    modalDelete.classList.add('hidden');
-    deleteId = null;
-    loadData();
-  } catch (error) {
-    showToast('Error: ' + error.message, 'error');
-  }
-});
+cancelBtn.onclick = () => {
+  form.reset();
+  editId = null;
+  submitBtn.innerText = 'Tambah';
+  cancelBtn.classList.add('hidden');
+};
 
 loadData();
