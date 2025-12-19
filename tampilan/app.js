@@ -1,4 +1,6 @@
-const API_URL = 'http://localhost:5000/api/atk';
+//const API_URL = 'http://localhost:5000/api/atk';
+
+const API_URL = '/api/atk';
 
 const form = document.getElementById('atkForm');
 const table = document.getElementById('atkTable');
@@ -13,14 +15,77 @@ const toast = document.getElementById('toast');
 
 let editId = null;
 let deleteId = null;
+let mockData = [
+  { id: 1, nama: 'Pulpen Gel Hitam', jenis: 'Alat Tulis', qty: 20 },
+  { id: 2, nama: 'Kertas HVS A4', jenis: 'Kertas', qty: 50 },
+];
+
+let mockLastId = 2;
+
+async function mockFetch(url, options = {}) {
+  const method = options.method || 'GET';
+
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      // GET ALL
+      if (url === API_URL && method === 'GET') {
+        resolve({
+          ok: true,
+          json: async () => mockData,
+        });
+      }
+
+      // POST
+      else if (url === API_URL && method === 'POST') {
+        const body = JSON.parse(options.body);
+        if (body.qty <= 0) {
+          resolve({
+            ok: false,
+            json: async () => ({ error: 'Qty harus lebih dari 0' }),
+          });
+          return;
+        }
+        mockLastId++;
+        const newItem = { id: mockLastId, ...body };
+        mockData.push(newItem);
+        resolve({
+          ok: true,
+          json: async () => newItem,
+        });
+      }
+
+      // PUT
+      else if (url.startsWith(API_URL + '/') && method === 'PUT') {
+        const id = parseInt(url.split('/').pop());
+        const body = JSON.parse(options.body);
+        const item = mockData.find((i) => i.id === id);
+        Object.assign(item, body);
+        resolve({
+          ok: true,
+          json: async () => item,
+        });
+      }
+
+      // DELETE
+      else if (url.startsWith(API_URL + '/') && method === 'DELETE') {
+        const id = parseInt(url.split('/').pop());
+        mockData = mockData.filter((i) => i.id !== id);
+        resolve({
+          ok: true,
+          json: async () => ({ message: 'Item berhasil dihapus' }),
+        });
+      }
+    }, 400);
+  });
+}
 
 function showToast(message, type = 'success') {
   toast.innerText = message;
 
-  if(type === 'success') {
+  if (type === 'success') {
     toast.classList.remove('bg-red-500');
     toast.classList.add('bg-green-500');
-  } else if(type === 'error') {
+  } else if (type === 'error') {
     toast.classList.remove('bg-green-500');
     toast.classList.add('bg-red-500');
   }
@@ -34,10 +99,11 @@ function showToast(message, type = 'success') {
 
 async function loadData() {
   try {
-    const res = await fetch(API_URL);
+    //const res = await fetch(API_URL);
+    const res = await mockFetch(API_URL);
     const data = await res.json();
     table.innerHTML = '';
-    data.forEach(item => {
+    data.forEach((item) => {
       table.innerHTML += `
         <tr class="hover:bg-gray-50 transition">
           <td class="px-4 py-2">${item.nama}</td>
@@ -59,14 +125,14 @@ async function loadData() {
   }
 }
 
-form.addEventListener('submit', async e => {
+form.addEventListener('submit', async (e) => {
   e.preventDefault();
   errorMsg.classList.add('hidden');
 
   const payload = {
     nama: nama.value,
     jenis: jenis.value,
-    qty: Number(qty.value)
+    qty: Number(qty.value),
   };
 
   try {
@@ -76,14 +142,14 @@ form.addEventListener('submit', async e => {
       res = await fetch(`${API_URL}/${editId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       successMsg = 'Barang berhasil diubah';
     } else {
       res = await fetch(API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       successMsg = 'Barang berhasil ditambahkan';
     }
